@@ -1,0 +1,10 @@
+[Plugin]
+Name=D Language Server Integration
+Description=D language support for Builder
+Author=Laurent Tréguier <laurent@treguier.org>
+Copyright=Copyright © 2018 Laurent Tréguier
+
+Loader=python3
+Module=dlang_langserver_plugin
+X-Project-File-Filter-Pattern=dub.json,dub.sdl
+X-Project-File-Filter-Name=Dub project
