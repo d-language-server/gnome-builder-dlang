@@ -51,10 +51,15 @@ class DlangService(Ide.Object, Ide.Service):
         if self._client:
             self._client.stop()
 
+        settings = GLib.Variant("a{sv}", { "symbol": GLib.Variant("a{sb}", { "listLocalSymbols": True }) })
+        dls_settings = GLib.Variant("a{sv}", { "d": GLib.Variant("a{sv}", { "dls": settings }) })
+        config_params = GLib.Variant("a{sv}", { "settings": dls_settings })
+
         self._client = Ide.LangservClient.new(self.get_context(), io_stream)
         self._client.add_language("d")
         self._client.start()
         self._client.send_notification_async("initialized", None, None, self._dls_notification_finish, None)
+        self._client.send_notification_async("workspace/didChangeConfiguration", config_params, None, self._dls_notification_finish, None)
         self.notify("client")
 
     def _dls_notification_finish(self, source_object, result, user_data):
