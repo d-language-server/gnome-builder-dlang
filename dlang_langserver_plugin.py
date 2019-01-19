@@ -54,7 +54,11 @@ class DlangService(Ide.Object, Ide.Service):
         self._client = Ide.LangservClient.new(self.get_context(), io_stream)
         self._client.add_language("d")
         self._client.start()
+        self._client.send_notification_async("initialized", None, None, self._dls_notification_finish, None)
         self.notify("client")
+
+    def _dls_notification_finish(self, source_object, result, user_data):
+        self._client.send_notification_finish(result)
 
     def _create_launcher(self):
         flags = Gio.SubprocessFlags.STDIN_PIPE | Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE
