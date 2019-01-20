@@ -24,7 +24,8 @@ class DlangService(Ide.Object, Ide.Service):
     def do_context_loaded(self):
         context = self.get_context()
         project_file = context.get_project_file()
-        project_dir = project_file if project_file.query_file_type(0, None) == Gio.FileType.DIRECTORY else project_file.get_parent()
+        project_dir = project_file if project_file.query_file_type(0, None) == Gio.FileType.DIRECTORY \
+            else project_file.get_parent()
         selections_file = project_dir.get_child("dub.selections.json")
         self._monitor = selections_file.monitor(0, None)
         self._monitor.set_rate_limit(1000)
