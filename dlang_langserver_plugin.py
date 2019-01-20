@@ -267,8 +267,7 @@ class DlangService(Ide.Object, Ide.Service):
 
     @classmethod
     def bind_client(klass, provider):
-        context = provider.get_context()
-        self = context.get_service_typed(DlangService)
+        self = provider.get_context().get_service_typed(DlangService)
         self._ensure_started()
         self.bind_property("client", provider, "client", GObject.BindingFlags.SYNC_CREATE)
 
@@ -282,9 +281,6 @@ try:
     class DlangCompletionProvider(Ide.LangservCompletionProvider):
         def do_load(self, context):
             DlangService.bind_client(self)
-
-        def do_get_priority(self, context):
-            return -1000
 except AttributeError: pass
 
 try:
