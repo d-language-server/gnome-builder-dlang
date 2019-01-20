@@ -12,4 +12,8 @@ Not every possible feature is implemented, but the server will update itself as 
 
 ## Requirements
 
-Dub and either DMD or LDC should be installed for the extension to work properly.
+DLS should be installed for the extension to work properly:
+```shell
+dub fetch dls
+dub run dls:bootstrap
+```
