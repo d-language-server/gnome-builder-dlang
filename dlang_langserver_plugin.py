@@ -6,6 +6,18 @@ from gi.repository import Gio
 from gi.repository import GObject
 from gi.repository import Ide
 
+_ = Ide.gettext
+
+_ERROR_FORMAT_REGEX = ("^(?<filename>.+\\.di?)\\D"
+                        "(?<line>\\d+)(?:,|:)?"
+                        "(?<column>\\d+)?\\S+\\s+"
+                        "(?<level>\\w+):\\s+"
+                        "(?<message>.+)$")
+
+
+def get_working_dir(context):
+    return context.get_vcs().get_working_directory()
+
 
 class DubBuildSystem(Ide.Object, Ide.BuildSystem, Gio.AsyncInitable):
     project_file = GObject.Property(type=Gio.File)
@@ -36,6 +48,134 @@ class DubBuildSystem(Ide.Object, Ide.BuildSystem, Gio.AsyncInitable):
 
     def do_init_finish(self, task):
         return task.propagate_boolean()
+
+
+class DubPipelineAddin(Ide.Object, Ide.BuildPipelineAddin):
+    def do_load(self, pipeline):
+        context = self.get_context()
+        build_system = context.get_build_system()
+
+        self.error_format_id = pipeline.add_error_format(_ERROR_FORMAT_REGEX,
+            GLib.RegexCompileFlags.OPTIMIZE |
+            GLib.RegexCompileFlags.CASELESS)
+
+        if type(build_system) != DubBuildSystem:
+            return
+
+        config = pipeline.get_configuration()
+        workdir_path = get_working_dir(context).get_path()
+
+        fetch_launcher = pipeline.create_launcher()
+        fetch_launcher.push_argv("dub")
+        fetch_launcher.push_argv("--root=" + workdir_path)
+        fetch_launcher.push_argv("upgrade")
+        fetch_launcher.push_argv("--missing-only")
+        self.track(pipeline.connect_launcher(Ide.BuildPhase.DOWNLOADS, 0, fetch_launcher))
+
+        build_launcher = pipeline.create_launcher()
+        build_launcher.push_argv("dub")
+        build_launcher.push_argv("--root=" + workdir_path)
+        build_launcher.push_argv("build")
+        build_launcher.push_argv("--build=" + ("debug" if config.props.debug else "release"))
+
+        clean_launcher = pipeline.create_launcher()
+        clean_launcher.push_argv("dub")
+        clean_launcher.push_argv("--root=" + workdir_path)
+        clean_launcher.push_argv("clean")
+
+        build_stage = Ide.BuildStageLauncher.new(context, build_launcher)
+        build_stage.set_name(_("Building project"))
+        build_stage.set_clean_launcher(clean_launcher)
+        build_stage.connect("query", self._query)
+        self.track(pipeline.connect(Ide.BuildPhase.BUILD, 0, build_stage))
+
+    def do_unload(self, pipeline):
+        if self.error_format_id:
+            pipeline.remove_error_format(self.error_format_id)
+
+    def _query(self, stage, pipeline, cancellable):
+        stage.set_completed(False)
+
+
+class DubBuildTarget(Ide.Object, Ide.BuildTarget):
+    def do_get_install_directory(self):
+        return None
+
+    def do_get_name(self):
+        return "dub-run"
+
+    def do_get_language(self):
+        return "d"
+
+    def do_get_argv(self):
+        return ["dub", "--root=" + get_working_dir(self.get_context()).get_path(), "run"]
+
+
+class DubBuildTargetProvider(Ide.Object, Ide.BuildTargetProvider):
+
+    def do_get_targets_async(self, cancellable, callback, data):
+        task = Gio.Task.new(self, cancellable, callback)
+        task.set_priority(GLib.PRIORITY_LOW)
+
+        context = self.get_context()
+        build_system = context.get_build_system()
+
+        if type(build_system) != DubBuildSystem:
+            task.return_error(GLib.Error('Not dub build system',
+                domain=GLib.quark_to_string(Gio.io_error_quark()),
+                code=Gio.IOErrorEnum.NOT_SUPPORTED))
+            return
+
+        task.targets = [DubBuildTarget(context=context)]
+        task.return_boolean(True)
+
+    def do_get_targets_finish(self, result):
+        if result.propagate_boolean():
+            return result.targets
+
+
+class DubDependencyUpdater(Ide.Object, Ide.DependencyUpdater):
+
+    def do_update_async(self, cancellable, callback, data):
+        task = Gio.Task.new(self, cancellable, callback)
+        task.set_priority(GLib.PRIORITY_LOW)
+
+        context = self.get_context()
+        build_system = context.get_build_system()
+
+        if type(build_system) != DubBuildSystem:
+            task.return_boolean(True)
+            return
+
+        build_manager = context.get_build_manager()
+        pipeline = build_manager.get_pipeline()
+
+        if not pipeline:
+            task.return_error(GLib.Error('Cannot update dependencies without build pipeline',
+                domain=GLib.quark_to_string(Gio.io_error_quark()),
+                code=Gio.IOErrorEnum.FAILED))
+            return
+
+        launcher = pipeline.create_launcher()
+        launcher.push_argv("dub")
+        launcher.push_argv("--root=" + get_working_dir(context).get_path())
+        launcher.push_argv("upgrade")
+
+        try:
+            subprocess = launcher.spawn()
+            subprocess.wait_check_async(None, self.wait_check_cb, task)
+        except Exception as ex:
+            task.return_error(ex)
+
+    def do_update_finish(self, result):
+        return result.propagate_boolean()
+
+    def wait_check_cb(self, subprocess, result, task):
+        try:
+            subprocess.wait_check_finish(result)
+            task.return_boolean(True)
+        except Exception as ex:
+            task.return_error(ex)
 
 
 class DlangService(Ide.Object, Ide.Service):
@@ -85,8 +225,7 @@ class DlangService(Ide.Object, Ide.Service):
         launcher = self._create_launcher()
         launcher.set_clear_env(False)
 
-        workdir = self.get_context().get_vcs().get_working_directory()
-        launcher.set_cwd(workdir.get_path())
+        launcher.set_cwd(get_working_dir(self.get_context()).get_path())
         launcher.push_argv(os.path.join(GLib.get_home_dir(), ".dub", "packages", ".bin", "dls-latest", "dls"))
         launcher.push_argv("--stdio")
 
