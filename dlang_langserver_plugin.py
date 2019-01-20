@@ -80,36 +80,50 @@ class DlangService(Ide.Object, Ide.Service):
         self._ensure_started()
         self.bind_property("client", provider, "client", GObject.BindingFlags.SYNC_CREATE)
 
-class DlangDiagnosticProvider(Ide.LangservDiagnosticProvider):
-    def do_load(self):
-        DlangService.bind_client(self)
+try:
+    class DlangDiagnosticProvider(Ide.LangservDiagnosticProvider):
+        def do_load(self):
+            DlangService.bind_client(self)
+except AttributeError: pass
 
-class DlangCompletionProvider(Ide.LangservCompletionProvider):
-    def do_load(self, context):
-        DlangService.bind_client(self)
+try:
+    class DlangCompletionProvider(Ide.LangservCompletionProvider):
+        def do_load(self, context):
+            DlangService.bind_client(self)
 
-    def do_get_priority(self, context):
-        return -1000
+        def do_get_priority(self, context):
+            return -1000
+except AttributeError: pass
 
-class DlangRenameProvider(Ide.LangservRenameProvider):
-    def do_load(self):
-        DlangService.bind_client(self)
+try:
+    class DlangRenameProvider(Ide.LangservRenameProvider):
+        def do_load(self):
+            DlangService.bind_client(self)
+except AttributeError: pass
 
-class DlangSymbolResolver(Ide.LangservSymbolResolver):
-    def do_load(self):
-        DlangService.bind_client(self)
+try:
+    class DlangSymbolResolver(Ide.LangservSymbolResolver):
+        def do_load(self):
+            DlangService.bind_client(self)
+except AttributeError: pass
 
-class DlangHighlighter(Ide.LangservHighlighter):
-    def do_load(self):
-        DlangService.bind_client(self)
+try:
+    class DlangHighlighter(Ide.LangservHighlighter):
+        def do_load(self):
+            DlangService.bind_client(self)
+except AttributeError: pass
 
-class DlangFormatter(Ide.LangservFormatter):
-    def do_load(self):
-        DlangService.bind_client(self)
+try:
+    class DlangFormatter(Ide.LangservFormatter):
+        def do_load(self):
+            DlangService.bind_client(self)
+except AttributeError: pass
 
-class DlangHoverProvider(Ide.LangservHoverProvider):
-    def do_prepare(self):
-        self.props.category = "D"
+try:
+    class DlangHoverProvider(Ide.LangservHoverProvider):
+        def do_prepare(self):
+            self.props.category = "D"
 
-    def do_load(self, context):
-        DlangService.bind_client(self)
+        def do_load(self, context):
+            DlangService.bind_client(self)
+except AttributeError: pass
