@@ -7,6 +7,37 @@ from gi.repository import GObject
 from gi.repository import Ide
 
 
+class DubBuildSystem(Ide.Object, Ide.BuildSystem, Gio.AsyncInitable):
+    project_file = GObject.Property(type=Gio.File)
+
+    def do_get_id(self):
+        return "dub"
+
+    def do_get_display_name(self):
+        return "Dub"
+
+    def do_init_async(self, io_priority, cancellable, callback, data):
+        task = Gio.Task.new(self, cancellable, callback)
+
+        try:
+            if self.props.project_file.get_basename() in ("dub.json", "dub.sdl"):
+                task.return_boolean(True)
+                return
+
+            if self.props.project_file.query_file_type(0) == Gio.FileType.DIRECTORY:
+                if self.props.project_file.get_child("dub.json").query_exists(None) \
+                        or self.props.project_file.get_child("dub.sdl").query_exists(None):
+                    task.return_boolean(True)
+                    return
+        except Exception as ex:
+            task.return_error(ex)
+
+        task.return_error(Ide.NotSupportedError())
+
+    def do_init_finish(self, task):
+        return task.propagate_boolean()
+
+
 class DlangService(Ide.Object, Ide.Service):
     _client = None
     _has_started = False
